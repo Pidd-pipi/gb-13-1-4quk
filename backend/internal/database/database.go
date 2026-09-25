@@ -52,5 +52,6 @@ func Migrate(db *gorm.DB, logger *slog.Logger) error {
 		&model.Favorite{},
 		&model.BrowseHistory{},
 		&model.AuditLog{},
+		&model.Borrow{},
 	)
 }

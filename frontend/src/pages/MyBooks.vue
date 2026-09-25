@@ -4,6 +4,7 @@
     <van-tabs v-model:active="activeTab" @change="onFilter">
       <van-tab title="在售" name="on_sale" />
       <van-tab title="已预约" name="reserved" />
+      <van-tab title="借出中" name="loaned" />
       <van-tab title="已售出" name="sold" />
     </van-tabs>
 

@@ -19,6 +19,9 @@ type CreateBookRequest struct {
 	Campus          string   `json:"campus" binding:"max=64"`
 	Description     string   `json:"description" binding:"max=2000"`
 	Images          []string `json:"images" binding:"max=5"`
+	// Borrowable 是否开启短借；BorrowDuration 借阅时长（7/14 天），勾选可借时必传。
+	Borrowable     bool `json:"borrowable"`
+	BorrowDuration int  `json:"borrow_duration" binding:"omitempty,oneof=7 14"`
 }
 
 // UpdateBookRequest 更新书籍请求。
@@ -35,6 +38,9 @@ type UpdateBookRequest struct {
 	Campus          string   `json:"campus" binding:"max=64"`
 	Description     string   `json:"description" binding:"max=2000"`
 	Images          []string `json:"images" binding:"max=5"`
+	// Borrowable / BorrowDuration 使用指针区分"未传"与"显式关闭"。
+	Borrowable     *bool `json:"borrowable"`
+	BorrowDuration *int  `json:"borrow_duration" binding:"omitempty,oneof=7 14"`
 }
 
 // BookQuery 书籍列表查询参数。
@@ -46,8 +52,9 @@ type BookQuery struct {
 	MinPrice        float64 `form:"min_price"`
 	MaxPrice        float64 `form:"max_price"`
 	SellerID        uint    `form:"seller_id"`
-	Status          string  `form:"status"` // on_sale / reserved / sold
-	Sort            string  `form:"sort"`   // price_asc / price_desc / newest / most_viewed
+	Status          string  `form:"status"`     // on_sale / reserved / sold / loaned
+	Borrowable      *bool   `form:"borrowable"` // 仅看可短借
+	Sort            string  `form:"sort"`       // price_asc / price_desc / newest / most_viewed
 	Page            int     `form:"page"`
 	PageSize        int     `form:"page_size"`
 }
@@ -74,11 +81,19 @@ type BookDTO struct {
 	Status          string   `json:"status"`
 	StatusText      string   `json:"status_text"`
 	ReservedBy      uint     `json:"reserved_by"`
+	Borrowable      bool     `json:"borrowable"`
+	BorrowDuration  int      `json:"borrow_duration"`
 	ViewCount       int      `json:"view_count"`
 	FavoriteCount   int      `json:"favorite_count"`
 	CreatedAt       string   `json:"created_at"`
 	Seller          *UserDTO `json:"seller,omitempty"`
 	IsFavorite      bool     `json:"is_favorite"`
+	// ActiveBorrow 当前生效的借阅（详情接口、本人视角返回），含到期日与逾期标记。
+	ActiveBorrow *BorrowDTO `json:"active_borrow,omitempty"`
+	// MyBorrow 当前查看用户自己对该书最近一笔申请（用于详情页按钮状态）。
+	MyBorrow *BorrowDTO `json:"my_borrow,omitempty"`
+	// PendingBorrowCount 该书待处理申请数（仅卖家视角返回）。
+	PendingBorrowCount int `json:"pending_borrow_count"`
 }
 
 // FromBook converts a model.Book to BookDTO.
@@ -104,6 +119,8 @@ func FromBook(b *model.Book) BookDTO {
 		Status:          b.Status,
 		StatusText:      util.FormatBookStatusText(b.Status),
 		ReservedBy:      b.ReservedBy,
+		Borrowable:      b.Borrowable,
+		BorrowDuration:  b.BorrowDuration,
 		ViewCount:       b.ViewCount,
 		FavoriteCount:   b.FavoriteCount,
 		CreatedAt:       util.FormatTime(b.CreatedAt),

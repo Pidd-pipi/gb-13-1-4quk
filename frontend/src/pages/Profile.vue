@@ -21,6 +21,7 @@
 
       <van-cell-group inset class="menu">
         <van-cell title="我发布的书籍" icon="records-o" is-link @click="$router.push('/my-books')" />
+        <van-cell title="短借管理" icon="exchange" is-link @click="$router.push('/borrows')" />
         <van-cell title="我的收藏" icon="star-o" is-link @click="$router.push('/favorites')" />
         <van-cell title="我的消息" icon="chat-o" is-link @click="$router.push('/messages')" />
         <van-cell title="发布求购" icon="todo-list-o" is-link @click="$router.push('/publish-wish')" />

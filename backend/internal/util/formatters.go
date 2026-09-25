@@ -28,6 +28,26 @@ func FormatBookStatusText(status string) string {
 		return "已预约"
 	case constants.BookStatusSold:
 		return "已售出"
+	case constants.BookStatusLoaned:
+		return "借出中"
+	default:
+		return "未知"
+	}
+}
+
+// FormatBorrowStatusText maps a borrow request status to Chinese text.
+func FormatBorrowStatusText(status string) string {
+	switch status {
+	case constants.BorrowStatusPending:
+		return "待同意"
+	case constants.BorrowStatusApproved:
+		return "借出中"
+	case constants.BorrowStatusRejected:
+		return "已拒绝"
+	case constants.BorrowStatusReturning:
+		return "待确认归还"
+	case constants.BorrowStatusReturned:
+		return "已归还"
 	default:
 		return "未知"
 	}

@@ -27,6 +27,7 @@ func newBookService(env *testEnv) *BookService {
 	return NewBookService(
 		env.db,
 		repository.NewBookRepository(env.db),
+		repository.NewBorrowRepository(env.db),
 		repository.NewFavoriteRepository(env.db),
 		repository.NewBrowseHistoryRepository(env.db),
 		repository.NewUserRepository(env.db),

@@ -20,6 +20,10 @@
       <van-button size="small" type="primary" @click="onFilter">确定</van-button>
     </div>
 
+    <div class="borrow-filter">
+      <van-checkbox v-model="borrowableOnly" shape="square" icon-size="16px" @change="onFilter">只看可短借</van-checkbox>
+    </div>
+
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
       <van-list v-model:loading="loading" :finished="finished" finished-text="没有更多了" @load="onLoad">
         <div v-if="list.length" class="book-list">
@@ -49,6 +53,7 @@ const query = reactive({
 })
 const minPrice = ref('')
 const maxPrice = ref('')
+const borrowableOnly = ref(false)
 const list = ref<Book[]>([])
 const page = ref(1)
 const total = ref(0)
@@ -72,6 +77,7 @@ async function fetchPage() {
       sort: query.sort,
       min_price: minPrice.value ? Number(minPrice.value) : undefined,
       max_price: maxPrice.value ? Number(maxPrice.value) : undefined,
+      borrowable: borrowableOnly.value ? true : undefined,
       page: page.value,
       page_size: 10,
     })
@@ -150,5 +156,9 @@ fetchPage()
 }
 .dash {
   color: #969799;
+}
+.borrow-filter {
+  padding: 0 12px 8px;
+  background: #fff;
 }
 </style>

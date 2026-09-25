@@ -14,11 +14,13 @@ export const RoleText: Record<string, string> = {
   [Role.ADMIN]: '管理员',
 }
 
-// 书籍状态机：on_sale(在售) -> reserved(已预约) -> sold(已售出)
+// 书籍状态机：on_sale(在售) -> reserved(已预约) -> sold(已售出)；
+// 短借流程额外有 loaned(借出中)，归还确认后回到 on_sale。
 export const BookStatus = {
   ON_SALE: 'on_sale',
   RESERVED: 'reserved',
   SOLD: 'sold',
+  LOANED: 'loaned',
 } as const
 export type BookStatusType = (typeof BookStatus)[keyof typeof BookStatus]
 
@@ -26,12 +28,51 @@ export const BookStatusText: Record<string, string> = {
   [BookStatus.ON_SALE]: '在售',
   [BookStatus.RESERVED]: '已预约',
   [BookStatus.SOLD]: '已售出',
+  [BookStatus.LOANED]: '借出中',
 }
 
-export const BookStatusBadge: Record<string, 'success' | 'warning' | 'default'> = {
+export const BookStatusBadge: Record<string, 'success' | 'warning' | 'default' | 'primary' | 'danger'> = {
   [BookStatus.ON_SALE]: 'success',
   [BookStatus.RESERVED]: 'warning',
   [BookStatus.SOLD]: 'default',
+  [BookStatus.LOANED]: 'primary',
+}
+
+// 短借时长（天）
+export const BorrowDuration = {
+  SEVEN: 7,
+  FOURTEEN: 14,
+} as const
+
+export const BorrowDurationOptions = [
+  { value: BorrowDuration.SEVEN, label: '7 天' },
+  { value: BorrowDuration.FOURTEEN, label: '14 天' },
+]
+
+// 短借申请状态：pending(待同意) -> approved(借出中) -> returning(待确认归还) -> returned(已归还)，另有 rejected(已拒绝)
+export const BorrowStatus = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  RETURNING: 'returning',
+  RETURNED: 'returned',
+} as const
+export type BorrowStatusType = (typeof BorrowStatus)[keyof typeof BorrowStatus]
+
+export const BorrowStatusText: Record<string, string> = {
+  [BorrowStatus.PENDING]: '待同意',
+  [BorrowStatus.APPROVED]: '借出中',
+  [BorrowStatus.REJECTED]: '已拒绝',
+  [BorrowStatus.RETURNING]: '待确认归还',
+  [BorrowStatus.RETURNED]: '已归还',
+}
+
+export const BorrowStatusBadge: Record<string, 'success' | 'warning' | 'default' | 'primary' | 'danger'> = {
+  [BorrowStatus.PENDING]: 'warning',
+  [BorrowStatus.APPROVED]: 'primary',
+  [BorrowStatus.REJECTED]: 'default',
+  [BorrowStatus.RETURNING]: 'warning',
+  [BorrowStatus.RETURNED]: 'success',
 }
 
 // 新旧程度

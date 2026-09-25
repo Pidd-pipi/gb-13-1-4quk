@@ -10,6 +10,7 @@ export interface BookQuery {
   max_price?: number
   seller_id?: number
   status?: string
+  borrowable?: boolean
   sort?: string
   page?: number
   page_size?: number
@@ -28,6 +29,8 @@ export interface BookPayload {
   campus: string
   description: string
   images: string[]
+  borrowable?: boolean
+  borrow_duration?: number
 }
 
 export function listBooks(params: BookQuery) {

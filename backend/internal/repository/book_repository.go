@@ -90,6 +90,9 @@ func (r *BookRepository) List(q dto.BookQuery) ([]model.Book, int64, error) {
 	if q.Status != "" {
 		db = db.Where("status = ?", q.Status)
 	}
+	if q.Borrowable != nil {
+		db = db.Where("borrowable = ?", *q.Borrowable)
+	}
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}

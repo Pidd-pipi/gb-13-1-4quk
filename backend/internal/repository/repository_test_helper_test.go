@@ -35,6 +35,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 		&model.Favorite{},
 		&model.BrowseHistory{},
 		&model.AuditLog{},
+		&model.Borrow{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

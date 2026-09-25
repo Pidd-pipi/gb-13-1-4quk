@@ -35,16 +35,49 @@ func Seed(db *gorm.DB, logger *slog.Logger) error {
 		return err
 	}
 
+	now := time.Now()
+
 	books := []model.Book{
-		{SellerID: 2, Title: "高等数学（第七版）上册", Author: "同济大学数学系", ISBN: "9787040396638", CourseName: "高等数学", OriginalPrice: 48, Price: 20, Condition: constants.ConditionNineNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeInPerson, Campus: "东校区", Description: "内页有少量笔记，不影响使用。", Images: []byte("[]"), Status: constants.BookStatusOnSale, ViewCount: 120, FavoriteCount: 5},
-		{SellerID: 2, Title: "数据结构（C语言版）", Author: "严蔚敏", ISBN: "9787302147510", CourseName: "数据结构", OriginalPrice: 39, Price: 15, Condition: constants.ConditionSevenNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeMail, Campus: "东校区", Description: "教材封面轻微磨损，内容完整。", Images: []byte("[]"), Status: constants.BookStatusOnSale, ViewCount: 88, FavoriteCount: 3},
+		{SellerID: 2, Title: "高等数学（第七版）上册", Author: "同济大学数学系", ISBN: "9787040396638", CourseName: "高等数学", OriginalPrice: 48, Price: 20, Condition: constants.ConditionNineNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeInPerson, Campus: "东校区", Description: "内页有少量笔记，不影响使用。", Images: []byte("[]"), Status: constants.BookStatusOnSale, Borrowable: true, BorrowDuration: constants.BorrowDuration7, ViewCount: 120, FavoriteCount: 5},
+		{SellerID: 2, Title: "数据结构（C语言版）", Author: "严蔚敏", ISBN: "9787302147510", CourseName: "数据结构", OriginalPrice: 39, Price: 15, Condition: constants.ConditionSevenNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeMail, Campus: "东校区", Description: "教材封面轻微磨损，内容完整。", Images: []byte("[]"), Status: constants.BookStatusOnSale, Borrowable: true, BorrowDuration: constants.BorrowDuration14, ViewCount: 88, FavoriteCount: 3},
 		{SellerID: 3, Title: "线性代数及其应用", Author: "David C. Lay", ISBN: "9787111476434", CourseName: "线性代数", OriginalPrice: 59, Price: 30, Condition: constants.ConditionBrandNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeInPerson, Campus: "东校区", Description: "全新未拆封，可小刀。", Images: []byte("[]"), Status: constants.BookStatusReserved, ReservedBy: 2, ViewCount: 210, FavoriteCount: 8},
 		{SellerID: 3, Title: "微观经济学", Author: "曼昆", ISBN: "9787301257775", CourseName: "微观经济学", OriginalPrice: 62, Price: 25, Condition: constants.ConditionNineNew, SubjectCategory: constants.SubjectEconManagement, TradeType: constants.TradeTypeInPerson, Campus: "西校区", Description: "几乎全新，有荧光笔重点。", Images: []byte("[]"), Status: constants.BookStatusSold, ViewCount: 300, FavoriteCount: 12},
-		{SellerID: 4, Title: "大学英语综合教程（第三册）", Author: "李荫华", ISBN: "9787544636010", CourseName: "大学英语", OriginalPrice: 45, Price: 18, Condition: constants.ConditionFiveNew, SubjectCategory: constants.SubjectHumanities, TradeType: constants.TradeTypeMail, Campus: "校本部", Description: "旧版教材，适合复习使用。", Images: []byte("[]"), Status: constants.BookStatusOnSale, ViewCount: 66, FavoriteCount: 2},
+		{SellerID: 4, Title: "大学英语综合教程（第三册）", Author: "李荫华", ISBN: "9787544636010", CourseName: "大学英语", OriginalPrice: 45, Price: 18, Condition: constants.ConditionFiveNew, SubjectCategory: constants.SubjectHumanities, TradeType: constants.TradeTypeMail, Campus: "校本部", Description: "旧版教材，适合复习使用。", Images: []byte("[]"), Status: constants.BookStatusOnSale, Borrowable: true, BorrowDuration: constants.BorrowDuration7, ViewCount: 66, FavoriteCount: 2},
 		{SellerID: 5, Title: "设计色彩基础", Author: "李立新", ISBN: "9787535637406", CourseName: "设计基础", OriginalPrice: 55, Price: 22, Condition: constants.ConditionNineNew, SubjectCategory: constants.SubjectArt, TradeType: constants.TradeTypeInPerson, Campus: "校本部", Description: "艺术设计专业用书。", Images: []byte("[]"), Status: constants.BookStatusOnSale, ViewCount: 45, FavoriteCount: 1},
-		{SellerID: 3, Title: "计算机组成原理（第2版）", Author: "唐朔飞", ISBN: "9787040258424", CourseName: "计算机组成原理", OriginalPrice: 39, Price: 16, Condition: constants.ConditionSevenNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeInPerson, Campus: "东校区", Description: "同院系同学在售教材。", Images: []byte("[]"), Status: constants.BookStatusOnSale, ViewCount: 30, FavoriteCount: 1},
+		{SellerID: 3, Title: "计算机组成原理（第2版）", Author: "唐朔飞", ISBN: "9787040258424", CourseName: "计算机组成原理", OriginalPrice: 39, Price: 16, Condition: constants.ConditionSevenNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeInPerson, Campus: "东校区", Description: "同院系同学的教材，支持 14 天短借。", Images: []byte("[]"), Status: constants.BookStatusLoaned, Borrowable: true, BorrowDuration: constants.BorrowDuration14, ViewCount: 30, FavoriteCount: 1},
 	}
 	if err := db.Create(&books).Error; err != nil {
+		return err
+	}
+
+	// 短借演示：book 7 借出中（未到期），book 8 借出中且已逾期
+	loanStart := now.Add(-10 * 24 * time.Hour)
+	loanDue := loanStart.AddDate(0, 0, 14)
+	overdueStart := now.Add(-10 * 24 * time.Hour)
+	overdueDue := overdueStart.AddDate(0, 0, 7)
+	borrows := []model.Borrow{
+		// 《计算机组成原理》借给张伟（user 2），14 天借期、剩余 4 天到期
+		{BookID: 7, LenderID: 3, BorrowerID: 2, Duration: constants.BorrowDuration14, Status: constants.BorrowStatusApproved, ApprovedAt: &loanStart, DueAt: &loanDue},
+		// 《高等数学》收到王芳（user 3）的待同意申请
+		{BookID: 1, LenderID: 2, BorrowerID: 3, Duration: constants.BorrowDuration7, Status: constants.BorrowStatusPending},
+	}
+	if err := db.Create(&borrows).Error; err != nil {
+		return err
+	}
+	overdueBook := model.Book{
+		SellerID: 4, Title: "概率论与数理统计（第四版）", Author: "盛骤", ISBN: "9787040238969", CourseName: "概率论",
+		OriginalPrice: 42, Price: 14, Condition: constants.ConditionSevenNew, SubjectCategory: constants.SubjectScience,
+		TradeType: constants.TradeTypeInPerson, Campus: "校本部", Description: "期末短借教材，当前借出已逾期。", Images: []byte("[]"),
+		Status: constants.BookStatusLoaned, Borrowable: true, BorrowDuration: constants.BorrowDuration7,
+	}
+	if err := db.Create(&overdueBook).Error; err != nil {
+		return err
+	}
+	overdue := model.Borrow{
+		BookID: overdueBook.ID, LenderID: 4, BorrowerID: 5, Duration: constants.BorrowDuration7,
+		Status: constants.BorrowStatusApproved, ApprovedAt: &overdueStart, DueAt: &overdueDue,
+	}
+	if err := db.Create(&overdue).Error; err != nil {
 		return err
 	}
 
@@ -57,7 +90,6 @@ func Seed(db *gorm.DB, logger *slog.Logger) error {
 		return err
 	}
 
-	now := time.Now()
 	conv := model.Conversation{BookID: 1, BuyerID: 3, SellerID: 2, LastMessage: "同学你好，这本书还在吗？", LastMessageAt: &now}
 	if err := db.Create(&conv).Error; err != nil {
 		return err

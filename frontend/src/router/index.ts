@@ -11,6 +11,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/messages', name: 'messages', component: () => import('@/pages/Messages.vue'), meta: { requiresAuth: true } },
   { path: '/chat/:id', name: 'chat', component: () => import('@/pages/Chat.vue'), meta: { requiresAuth: true } },
   { path: '/my-books', name: 'my-books', component: () => import('@/pages/MyBooks.vue'), meta: { requiresAuth: true } },
+  { path: '/borrows', name: 'borrows', component: () => import('@/pages/Borrows.vue'), meta: { requiresAuth: true } },
   { path: '/favorites', name: 'favorites', component: () => import('@/pages/Favorites.vue'), meta: { requiresAuth: true } },
   { path: '/profile', name: 'profile', component: () => import('@/pages/Profile.vue'), meta: { requiresAuth: true } },
   { path: '/login', name: 'login', component: () => import('@/pages/Login.vue') },

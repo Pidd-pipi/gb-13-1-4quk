@@ -29,12 +29,13 @@ docker compose up -d --build
 ## 主要功能
 
 1. **用户注册与认证**：学号 + 学校邮箱注册，邮箱验证码校验（开发环境 `send-code` 直接返回 `dev_code` 便于联调），JWT 登录，完善姓名/院系/联系方式，支持头像上传（MinIO）。
-2. **发布闲置书籍**：书名/作者/ISBN/原价/售价/新旧程度/学科分类/课程名/交易方式/校区/描述，最多 5 张实物图片。
-3. **搜索与浏览**：按书名/作者/ISBN/课程名关键词搜索，按学科分类、新旧程度、价格区间筛选，按价格/发布时间/浏览量排序。
+2. **发布闲置书籍**：书名/作者/ISBN/原价/售价/新旧程度/学科分类/课程名/交易方式/校区/描述，最多 5 张实物图片；可勾选「支持短借」并选择 **7 天 / 14 天** 借期。
+3. **搜索与浏览**：按书名/作者/ISBN/课程名关键词搜索，按学科分类、新旧程度、价格区间、是否可短借筛选，按价格/发布时间/浏览量排序。
 4. **求购信息**：买家发布求购（书名/期望价格/新旧要求/学科分类），卖家可一键联系求购者（自动创建会话）。
 5. **交易沟通**：内置站内消息（文字 + 图片），会话未读数，支持标记书籍「已预约 / 已售出」。
 6. **交易评价**：交易完成后买卖双方互评（好评/中评/差评 + 文字），用户主页展示好评率与历史评价，差评率 ≥40% 且评价数 ≥3 时标记风险提示。
 7. **收藏与浏览历史**：收藏书籍、自动记录浏览历史、首页推荐同院系同学在售书籍。
+8. **短借流程**：同学在书籍详情提交借阅申请 → 卖家同意后书籍显示「借出中」并记录到期日（同意时刻 + 7/14 天），其他待处理申请自动拒绝；借阅人到期前发起归还、卖家确认拿回后书籍恢复可借；超过到期日显示「逾期」，卖家可查看借阅人资料并通过站内消息发送还书提醒。
 
 ## 技术栈
 
@@ -142,23 +143,38 @@ cd frontend && npm install && npm run dev
 | GET | /users/:id/stats | 用户统计（复用 userService.GetStats） | 否 |
 | GET | /users/:id/evaluations | 用户收到的评价（复用 evaluationService.ListEvaluations） | 否 |
 
-### 书籍 Book（核心状态机 on_sale → reserved → sold）
+### 书籍 Book（核心状态机 on_sale → reserved → sold；短借 on_sale ↔ loaned）
 
 | 方法 | 路径 | 说明 | 认证 |
 | --- | --- | --- | --- |
-| GET | /books | 搜索/筛选/排序（复用 bookService.ListBooks） | 否 |
+| GET | /books | 搜索/筛选/排序（支持 `borrowable=true` 只看可短借，复用 bookService.ListBooks） | 否 |
 | GET | /books/recommendations | 同院系推荐（复用 bookService.ListBooks 的 DTO 管线） | 是 |
 | GET | /books/favorites | 我的收藏 | 是 |
 | GET | /books/history | 我的浏览历史 | 是 |
-| POST | /books | 发布书籍 | 是 |
-| GET | /books/:id | 书籍详情（+浏览量 +浏览历史） | 否 |
+| POST | /books | 发布书籍（body 可带 `borrowable` + `borrow_duration=7|14`） | 是 |
+| GET | /books/:id | 书籍详情（+浏览量 +浏览历史；含 `active_borrow`/`my_borrow`/`pending_borrow_count`） | 否 |
 | PUT | /books/:id | 编辑（仅卖家、在售） | 是 |
-| DELETE | /books/:id | 下架（仅卖家） | 是 |
+| DELETE | /books/:id | 下架（仅卖家；借出中不可下架） | 是 |
 | POST | /books/:id/reserve | 标记已预约（on_sale→reserved，FOR UPDATE 事务） | 是 |
 | POST | /books/:id/cancel-reserve | 取消预约（reserved→on_sale） | 是 |
-| POST | /books/:id/sold | 确认售出（reserved/on_sale→sold） | 是 |
+| POST | /books/:id/sold | 确认售出（reserved/on_sale→sold；借出中拒绝） | 是 |
 | POST | /books/:id/favorite | 收藏 | 是 |
 | DELETE | /books/:id/favorite | 取消收藏 | 是 |
+| GET | /books/:id/borrows | 该书借阅申请列表（卖家看全部 / 借阅人看自己） | 是 |
+| POST | /books/:id/borrows | 提交借阅申请（仅 `borrowable=true` 且在售） | 是 |
+
+### 短借 Borrow（状态机 pending → approved → returning → returned，另有 rejected）
+
+| 方法 | 路径 | 说明 | 认证 |
+| --- | --- | --- | --- |
+| GET | /borrows?role=lender\|borrower | 我借出的 / 我借入的（可带 `book_id`、`status` 过滤） | 是 |
+| GET | /borrows/:id | 借阅申请详情（仅借/贷双方） | 是 |
+| POST | /borrows/:id/approve | 卖家同意：记录到期日（同意时刻+7/14 天）、书籍 loaned、其他申请自动 rejected（FOR UPDATE 事务） | 是 |
+| POST | /borrows/:id/reject | 卖家拒绝（body 可带 `reason`） | 是 |
+| POST | /borrows/:id/return | 借阅人发起归还（approved→returning，到期前后均可） | 是 |
+| POST | /borrows/:id/confirm-return | 卖家确认拿回（→returned，书籍恢复 on_sale/可借） | 是 |
+| POST | /borrows/:id/remind | 逾期后卖家发送还书提醒（复用会话/消息，自动节流） | 是 |
+| POST | /borrows/:id/contact | 借阅双方打开/复用沟通会话（卖家也可发起） | 是 |
 
 ### 求购 Wish
 
@@ -202,6 +218,7 @@ cd frontend && npm install && npm run dev
 
 - `bookService.ListBooks` 被「书籍列表」与「同院系推荐」复用（推荐页复用同一 DTO 转换管线）。
 - `conversationService.createConversation` 被「从书籍发起会话」「从求购发起会话（wish contact）」两个接口复用。
+- `borrowService.ensureConversation` 被「逾期提醒（remind）」与「借阅双方沟通（contact）」复用，统一按书复用买家（借阅人）/卖家会话并写消息。
 - `userService.GetStats` 被「我的统计」与「他人主页统计」两个接口复用。
 - `evaluationService.ListEvaluations` 被「评价接口响应」与「用户主页评价历史」复用。
 
@@ -215,23 +232,23 @@ cd frontend && npm install && npm run dev
 
 以下业务枚举在后端 `internal/constants/enums.go` 统一定义，并贯穿模型 / DTO / service 状态机 / handler 校验 / 日志模板 / formatters 与前端 `frontend/src/constants/enums.ts`、筛选与状态徽标组件。
 
-### 1. 书籍状态 BookStatus（on_sale / reserved / sold）
+### 1. 书籍状态 BookStatus（on_sale / reserved / sold / loaned）与短借状态 BorrowStatus（pending / approved / rejected / returning / returned）
 
 | 出现位置（后端） | 文件 |
 | --- | --- |
-| 枚举定义 | `internal/constants/enums.go` |
-| 模型默认值 | `internal/model/book.go`（Status 字段默认 on_sale） |
-| DTO 状态文本 | `internal/dto/book_dto.go`（FromBook） |
-| 状态机 | `internal/service/book_service.go`（transition 事务 + FOR UPDATE） |
-| handler 校验/路由动作 | `internal/handler/book_handler.go`（reserve/cancel/sold） |
-| 日志模板 | `internal/constants/log_templates.go`（LogBookStatusChanged 等） |
-| 错误码 | `internal/constants/error_codes.go`（CodeBookStatusInvalid/Conflict） |
-| 格式化 | `internal/util/formatters.go`（FormatBookStatusText） |
-| 种子数据 | `internal/database/seed.go` |
-| 数据库脚本 | `backend/migrations/001_init.sql` |
-| 前端枚举/文案/徽标 | `frontend/src/constants/enums.ts`（BookStatusText / BookStatusBadge） |
+| 枚举定义 | `internal/constants/enums.go`（含 BorrowDuration 7/14） |
+| 模型默认值 | `internal/model/book.go`（Status 默认 on_sale、Borrowable/BorrowDuration）、`internal/model/borrow.go`（Borrow 默认 pending、IsOverdue） |
+| DTO 状态文本 | `internal/dto/book_dto.go`（FromBook）、`internal/dto/borrow_dto.go`（FromBorrow） |
+| 状态机 | `internal/service/book_service.go`（transition 事务 + FOR UPDATE）、`internal/service/borrow_service.go`（同意/拒绝/归还/确认/提醒） |
+| handler 校验/路由动作 | `internal/handler/book_handler.go`、`internal/handler/borrow_handler.go`、`internal/router/books.go`、`internal/router/borrows.go`（reserve/cancel/sold、approve/reject/return/confirm-return/remind/contact） |
+| 日志模板 | `internal/constants/log_templates.go`（LogBookStatusChanged、LogBorrow* 等） |
+| 错误码 | `internal/constants/error_codes.go`（CodeBookStatusInvalid/Conflict、CodeBorrow*） |
+| 格式化 | `internal/util/formatters.go`（FormatBookStatusText / FormatBorrowStatusText） |
+| 种子数据 | `internal/database/seed.go`（可借书籍、借出中与逾期借阅） |
+| 数据库脚本 | `backend/migrations/001_init.sql`（books 新增 borrowable/borrow_duration、borrows 表） |
+| 前端枚举/文案/徽标 | `frontend/src/constants/enums.ts`（BookStatusText / BookStatusBadge、BorrowStatus*） |
 | 前端状态徽标 | `frontend/src/components/StatusBadge.vue` |
-| 前端筛选/页面 | `frontend/src/pages/MyBooks.vue`（在售/已预约/已售出 tabs）、`BookDetail.vue`（操作按钮显隐） |
+| 前端表单/筛选/页面 | `frontend/src/pages/PublishBook.vue`（可借开关+借期）、`BookDetail.vue`（借阅申请/归还/确认/提醒）、`Borrows.vue`（短借管理）、`MyBooks.vue`（借出中 tab）、`BookList.vue`（只看可短借） |
 
 ### 2. 新旧程度 Condition（brand_new / nine_new / seven_new / five_new）
 
@@ -284,6 +301,17 @@ curl -s "http://localhost:3011/api/v1/books?keyword=高等数学&subject_categor
 
 # 5. 标记书籍为已售出
 curl -s -X POST http://localhost:3011/api/v1/books/1/sold -H "Authorization: Bearer $TOKEN"
+
+# 5b. 短借流程：发布可借书籍 -> 同学申请 -> 卖家同意（书籍借出、记录到期日）-> 借阅人归还 -> 卖家确认拿回
+curl -s -X POST http://localhost:3011/api/v1/books -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"title":"操作系统导论","price":25,"condition":"nine_new","subject_category":"science","trade_type":"in_person","borrowable":true,"borrow_duration":7}'
+BID=$(curl -s "http://localhost:3011/api/v1/books?keyword=操作系统" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['list'][0]['id'])")
+RID=$(curl -s -X POST http://localhost:3011/api/v1/books/$BID/borrows -H "Authorization: Bearer $TOKEN" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['id'])")
+curl -s -X POST http://localhost:3011/api/v1/borrows/$RID/approve -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://localhost:3011/api/v1/borrows/$RID/return -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://localhost:3011/api/v1/borrows/$RID/confirm-return -H "Authorization: Bearer $TOKEN"
+# 逾期后卖家提醒借阅人（自动复用该书会话发站内消息）
+curl -s -X POST http://localhost:3011/api/v1/borrows/$RID/remind -H "Authorization: Bearer $TOKEN"
 
 # 6. 交易后评价
 curl -s -X POST http://localhost:3011/api/v1/evaluations \

@@ -35,4 +35,16 @@ const (
 	MsgWishNotOwned         = "只能操作自己发布的求购信息"
 	MsgEvaluationDuplicate  = "你们已对该笔交易评价过"
 	MsgEvaluationForbidden  = "交易未完成，暂不能评价"
+
+	MsgBorrowCreated       = "借阅申请已提交，等待卖家同意"
+	MsgBorrowApproved      = "已同意借阅申请"
+	MsgBorrowRejected      = "已拒绝借阅申请"
+	MsgBorrowReturned      = "已提交归还，等待卖家确认"
+	MsgBorrowConfirmed     = "卖家已确认收回，书籍恢复可借"
+	MsgBorrowReminderSent  = "还书提醒已发送"
+	MsgBorrowNotAllowed    = "该书未开启短借"
+	MsgBorrowDuplicate     = "你已有待处理的借阅申请"
+	MsgBorrowNotBorrower   = "仅借阅人可以操作"
+	MsgBorrowNotSeller     = "仅卖家可以操作"
+	MsgBorrowStatusInvalid = "借阅申请当前状态不允许该操作"
 )

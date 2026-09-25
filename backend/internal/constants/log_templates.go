@@ -34,6 +34,14 @@ const (
 	LogBookFavoriteRemoved  = "book favorite removed: user_id=%d book_id=%d"
 	LogBookRecommendList    = "book recommendation list success: user_id=%d"
 
+	LogBorrowApplied   = "borrow request applied: id=%d book_id=%d borrower=%d duration=%d"
+	LogBorrowApproved  = "borrow request approved: id=%d book_id=%d borrower=%d due=%s"
+	LogBorrowRejected  = "borrow request rejected: id=%d book_id=%d operator=%d"
+	LogBorrowReturned  = "borrow marked returning: id=%d book_id=%d borrower=%d"
+	LogBorrowConfirmed = "borrow return confirmed: id=%d book_id=%d operator=%d"
+	LogBorrowReminder  = "borrow overdue reminder sent: id=%d book_id=%d seller=%d borrower=%d"
+	LogBorrowList      = "borrow list queried: owner=%s user_id=%d book_id=%d"
+
 	LogWishCreateSuccess  = "wish created: id=%d book_title=%s user_id=%d"
 	LogWishCloseSuccess   = "wish closed: id=%d user_id=%d"
 	LogWishContactSuccess = "wish contact created: wish_id=%d seller_id=%d"

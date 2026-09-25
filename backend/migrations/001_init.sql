@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS books (
   status VARCHAR(16) NOT NULL DEFAULT 'on_sale',
   reserved_by BIGINT UNSIGNED DEFAULT 0,
   reserved_at DATETIME(3) NULL,
+  borrowable TINYINT(1) NOT NULL DEFAULT 0,
+  borrow_duration INT NOT NULL DEFAULT 0,
   view_count INT DEFAULT 0,
   favorite_count INT DEFAULT 0,
   created_at DATETIME(3) NULL,
@@ -127,6 +129,29 @@ CREATE TABLE IF NOT EXISTS browse_histories (
   book_id BIGINT UNSIGNED NOT NULL,
   viewed_at DATETIME(3) NOT NULL,
   KEY idx_hist_user_time (user_id, viewed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- borrows 短借申请表（pending -> approved -> returning -> returned，另有 rejected）
+CREATE TABLE IF NOT EXISTS borrows (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  book_id BIGINT UNSIGNED NOT NULL,
+  lender_id BIGINT UNSIGNED NOT NULL,
+  borrower_id BIGINT UNSIGNED NOT NULL,
+  duration INT NOT NULL DEFAULT 0,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  due_at DATETIME(3) NULL,
+  approved_at DATETIME(3) NULL,
+  returned_at DATETIME(3) NULL,
+  confirmed_at DATETIME(3) NULL,
+  reject_reason VARCHAR(255) DEFAULT '',
+  reminded_at DATETIME(3) NULL,
+  created_at DATETIME(3) NULL,
+  updated_at DATETIME(3) NULL,
+  KEY idx_borrows_book (book_id),
+  KEY idx_borrows_lender (lender_id),
+  KEY idx_borrows_borrower (borrower_id),
+  KEY idx_borrows_status (status),
+  KEY idx_borrows_due (due_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- audit_logs 操作审计日志表

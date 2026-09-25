@@ -2,14 +2,13 @@ package service
 
 import (
 	"encoding/json"
-
 	"errors"
 	"fmt"
-	"gorm.io/datatypes"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
 	"github.com/campusbooks/campusbooks/internal/constants"
@@ -20,10 +19,12 @@ import (
 )
 
 // BookService handles book lifecycle: CRUD, search, favorites, history,
-// recommendations and the on_sale -> reserved -> sold state machine.
+// recommendations and the on_sale -> reserved -> sold state machine,
+// plus the short-borrow (on_sale <-> loaned) lifecycle.
 type BookService struct {
 	db          *gorm.DB
 	bookRepo    *repository.BookRepository
+	borrowRepo  *repository.BorrowRepository
 	favRepo     *repository.FavoriteRepository
 	historyRepo *repository.BrowseHistoryRepository
 	userRepo    *repository.UserRepository
@@ -31,13 +32,19 @@ type BookService struct {
 }
 
 // NewBookService creates a BookService.
-func NewBookService(db *gorm.DB, bookRepo *repository.BookRepository, favRepo *repository.FavoriteRepository,
-	historyRepo *repository.BrowseHistoryRepository, userRepo *repository.UserRepository, logger *slog.Logger) *BookService {
-	return &BookService{db: db, bookRepo: bookRepo, favRepo: favRepo, historyRepo: historyRepo, userRepo: userRepo, logger: logger}
+func NewBookService(db *gorm.DB, bookRepo *repository.BookRepository, borrowRepo *repository.BorrowRepository,
+	favRepo *repository.FavoriteRepository, historyRepo *repository.BrowseHistoryRepository,
+	userRepo *repository.UserRepository, logger *slog.Logger) *BookService {
+	return &BookService{db: db, bookRepo: bookRepo, borrowRepo: borrowRepo, favRepo: favRepo,
+		historyRepo: historyRepo, userRepo: userRepo, logger: logger}
 }
 
 // CreateBook publishes a new book for sale.
 func (s *BookService) CreateBook(sellerID uint, req dto.CreateBookRequest) (*dto.BookDTO, error) {
+	borrowable, duration, err := normalizeBorrowConfig(req.Borrowable, req.BorrowDuration)
+	if err != nil {
+		return nil, err
+	}
 	book := &model.Book{
 		SellerID:        sellerID,
 		Title:           req.Title,
@@ -53,6 +60,8 @@ func (s *BookService) CreateBook(sellerID uint, req dto.CreateBookRequest) (*dto
 		Description:     req.Description,
 		Images:          marshalImages(req.Images),
 		Status:          constants.BookStatusOnSale,
+		Borrowable:      borrowable,
+		BorrowDuration:  duration,
 	}
 	if err := s.bookRepo.Create(book); err != nil {
 		s.logger.Error(constants.LogBookCreateFailed, "seller_id", sellerID, "error", err)
@@ -115,6 +124,18 @@ func (s *BookService) UpdateBook(userID, bookID uint, req dto.UpdateBookRequest)
 	if req.OriginalPrice >= 0 {
 		book.OriginalPrice = req.OriginalPrice
 	}
+	if req.Borrowable != nil {
+		duration := book.BorrowDuration
+		if req.BorrowDuration != nil {
+			duration = *req.BorrowDuration
+		}
+		enabled, d, err := normalizeBorrowConfig(*req.Borrowable, duration)
+		if err != nil {
+			return nil, err
+		}
+		book.Borrowable = enabled
+		book.BorrowDuration = d
+	}
 	if err := s.bookRepo.Update(book); err != nil {
 		s.logger.Error(constants.LogBookUpdateSuccess, "id", bookID, "title", book.Title, "error", err)
 		return nil, util.NewAppError(http.StatusInternalServerError, constants.CodeInternalError, constants.MsgInternalError)
@@ -132,6 +153,9 @@ func (s *BookService) DeleteBook(userID, bookID uint) error {
 	}
 	if book.SellerID != userID {
 		return util.NewAppError(http.StatusForbidden, constants.CodeBookNotOwned, constants.MsgBookNotOwned)
+	}
+	if active, _ := s.borrowRepo.FindActiveByBookFull(bookID); active != nil {
+		return util.NewAppError(http.StatusConflict, constants.CodeBorrowConflict, "书籍借出中，待归还确认后再下架")
 	}
 	if err := s.bookRepo.Delete(bookID); err != nil {
 		s.logger.Error(constants.LogBookDeleteSuccess, "id", bookID, "seller_id", userID, "error", err)
@@ -193,7 +217,46 @@ func (s *BookService) GetBookDetail(userID, bookID uint) (*dto.BookDTO, error) {
 		exists, _ := s.favRepo.Exists(userID, bookID)
 		d.IsFavorite = exists
 	}
+	now := time.Now()
+	// 当前生效借阅（借出中/待确认归还，含逾期标记）
+	if active, _ := s.borrowRepo.FindActiveByBookFull(bookID); active != nil {
+		bd := dto.FromBorrow(active, now)
+		fillBorrowRelations(&bd, active)
+		d.ActiveBorrow = &bd
+	}
+	// 登录借阅人看到自己的申请状态；卖家看到待处理申请数
+	if userID > 0 && book.SellerID != userID {
+		if mine, _ := s.borrowRepo.FindLatestByBorrower(bookID, userID); mine != nil {
+			bd := dto.FromBorrow(mine, now)
+			d.MyBorrow = &bd
+		}
+	}
+	if userID > 0 && book.SellerID == userID {
+		if n, _ := s.borrowRepo.CountPendingByBook(bookID); n > 0 {
+			d.PendingBorrowCount = int(n)
+		}
+	}
 	return &d, nil
+}
+
+// fillBorrowRelations hydrates lender/borrower/user refs on a BorrowDTO.
+func fillBorrowRelations(d *dto.BorrowDTO, b *model.Borrow) {
+	if b.Lender != nil {
+		u := dto.FromUser(b.Lender)
+		d.Lender = &u
+	}
+	if b.Borrower != nil {
+		u := dto.FromUser(b.Borrower)
+		d.Borrower = &u
+	}
+	if b.Book != nil {
+		bd := dto.FromBook(b.Book)
+		if b.Book.Seller != nil {
+			u := dto.FromUser(b.Book.Seller)
+			bd.Seller = &u
+		}
+		d.Book = &bd
+	}
 }
 
 // ReserveBook transitions on_sale -> reserved (buyer marks 已预约).
@@ -251,6 +314,9 @@ func (s *BookService) transition(userID, bookID uint, from, to string) (*dto.Boo
 			}
 			if fromStatus == constants.BookStatusSold {
 				return util.NewAppError(http.StatusConflict, constants.CodeBookStatusConflict, "书籍已售出，状态不可再变更")
+			}
+			if active, _ := s.borrowRepo.FindActiveByBook(tx, bookID); active != nil {
+				return util.NewAppError(http.StatusConflict, constants.CodeBorrowConflict, "书籍借出中，待归还确认后再标记售出")
 			}
 			book.Status = constants.BookStatusSold
 		default:
@@ -391,4 +457,18 @@ func marshalImages(images []string) datatypes.JSON {
 	}
 	b, _ := json.Marshal(images)
 	return datatypes.JSON(b)
+}
+
+// normalizeBorrowConfig validates the publish-time short-borrow switch:
+// enabled books must pick a supported duration (7/14 days); disabled books
+// persist duration 0.
+func normalizeBorrowConfig(enabled bool, duration int) (bool, int, error) {
+	if !enabled {
+		return false, 0, nil
+	}
+	if !constants.IsValidBorrowDuration(duration) {
+		return false, 0, util.NewAppError(http.StatusBadRequest, constants.CodeBorrowDurationInvalid,
+			"开启短借时必须选择借阅时长：7 天或 14 天")
+	}
+	return true, duration, nil
 }

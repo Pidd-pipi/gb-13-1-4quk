@@ -26,6 +26,19 @@
           </template>
         </van-field>
         <van-field v-model="form.campus" label="所在校区" placeholder="如：东校区" />
+        <van-field label="支持短借">
+          <template #input>
+            <van-switch v-model="form.borrowable" @change="onToggleBorrowable" />
+            <span class="borrow-hint">教材只用一学期？开启后同学可申请借阅 7 / 14 天</span>
+          </template>
+        </van-field>
+        <van-field v-if="form.borrowable" label="借阅时长" required>
+          <template #input>
+            <van-radio-group v-model="form.borrow_duration" direction="horizontal">
+              <van-radio v-for="d in BorrowDurationOptions" :key="d.value" :name="d.value">{{ d.label }}</van-radio>
+            </van-radio-group>
+          </template>
+        </van-field>
         <van-field v-model="form.description" label="描述" type="textarea" rows="3" autosize placeholder="书籍情况、笔记情况等" maxlength="2000" show-word-limit />
       </van-cell-group>
 
@@ -46,9 +59,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showSuccessToast } from 'vant'
+import { showSuccessToast, showFailToast } from 'vant'
 import { createBook, updateBook, getBook } from '@/api/book'
-import { ConditionOptions } from '@/constants/enums'
+import { ConditionOptions, BorrowDurationOptions } from '@/constants/enums'
 import SubjectPicker from '@/components/SubjectPicker.vue'
 import ImageUploader from '@/components/ImageUploader.vue'
 
@@ -69,9 +82,17 @@ const form = reactive({
   trade_type: 'in_person',
   campus: '',
   description: '',
+  borrowable: false,
+  borrow_duration: 7,
 })
 const images = ref<string[]>([])
 const submitting = ref(false)
+
+function onToggleBorrowable(value: boolean | string | number) {
+  if (value && !form.borrow_duration) {
+    form.borrow_duration = 7
+  }
+}
 
 onMounted(async () => {
   if (isEdit.value) {
@@ -88,6 +109,8 @@ onMounted(async () => {
       form.trade_type = book.trade_type
       form.campus = book.campus
       form.description = book.description
+      form.borrowable = !!book.borrowable
+      form.borrow_duration = book.borrow_duration || 7
       images.value = book.images || []
     } catch {
       /* toast */
@@ -97,6 +120,10 @@ onMounted(async () => {
 
 async function onSubmit() {
   if (!form.subject_category) {
+    return
+  }
+  if (form.borrowable && !form.borrow_duration) {
+    showFailToast('请选择借阅时长')
     return
   }
   submitting.value = true
@@ -114,6 +141,8 @@ async function onSubmit() {
       campus: form.campus,
       description: form.description,
       images: images.value,
+      borrowable: form.borrowable,
+      borrow_duration: form.borrowable ? form.borrow_duration : 0,
     }
     if (isEdit.value) {
       await updateBook(editId.value, payload)
@@ -142,6 +171,11 @@ async function onSubmit() {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 10px;
+}
+.borrow-hint {
+  margin-left: 10px;
+  color: #969799;
+  font-size: 12px;
 }
 .submit-wrap {
   padding: 12px 12px 40px;

@@ -25,10 +25,13 @@ type Book struct {
 	Status          string         `gorm:"size:16;default:on_sale;index" json:"status"`
 	ReservedBy      uint           `gorm:"default:0" json:"reserved_by"`
 	ReservedAt      *time.Time     `json:"reserved_at"`
-	ViewCount       int            `gorm:"default:0" json:"view_count"`
-	FavoriteCount   int            `gorm:"default:0" json:"favorite_count"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
+	// Borrowable 是否开启短借；BorrowDuration 短借时长（7/14 天），仅 Borrowable=true 时有效。
+	Borrowable     bool      `gorm:"not null;default:false" json:"borrowable"`
+	BorrowDuration int       `gorm:"not null;default:0" json:"borrow_duration"`
+	ViewCount      int       `gorm:"default:0" json:"view_count"`
+	FavoriteCount  int       `gorm:"default:0" json:"favorite_count"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 
 	Seller *User `gorm:"foreignKey:SellerID" json:"seller,omitempty"`
 }

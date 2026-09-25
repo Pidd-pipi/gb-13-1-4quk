@@ -34,6 +34,16 @@ const (
 	CodeBookNotFavorite     = 40402
 )
 
+// 短借模块错误码。
+const (
+	CodeBorrowNotFound        = 40405
+	CodeBorrowForbidden       = 40306
+	CodeBorrowNotAllowed      = 42203
+	CodeBorrowConflict        = 40908
+	CodeBorrowDuplicate       = 40909
+	CodeBorrowDurationInvalid = 42204
+)
+
 // 求购模块错误码。
 const (
 	CodeWishNotFound      = 40403

@@ -20,6 +20,7 @@ import (
 func Setup(cfg *config.Config, db *gorm.DB, codeStore util.CodeStore, minio *util.MinIOClient, logger *slog.Logger) *gin.Engine {
 	userRepo := repository.NewUserRepository(db)
 	bookRepo := repository.NewBookRepository(db)
+	borrowRepo := repository.NewBorrowRepository(db)
 	wishRepo := repository.NewWishRepository(db)
 	convRepo := repository.NewConversationRepository(db)
 	msgRepo := repository.NewMessageRepository(db)
@@ -30,7 +31,8 @@ func Setup(cfg *config.Config, db *gorm.DB, codeStore util.CodeStore, minio *uti
 
 	authService := service.NewAuthService(userRepo, codeStore, logger, cfg)
 	userService := service.NewUserService(userRepo, evalRepo, logger)
-	bookService := service.NewBookService(db, bookRepo, favRepo, historyRepo, userRepo, logger)
+	bookService := service.NewBookService(db, bookRepo, borrowRepo, favRepo, historyRepo, userRepo, logger)
+	borrowService := service.NewBorrowService(db, borrowRepo, bookRepo, convRepo, msgRepo, logger)
 	wishService := service.NewWishService(wishRepo, logger)
 	convService := service.NewConversationService(convRepo, msgRepo, bookRepo, wishRepo, logger)
 	evalService := service.NewEvaluationService(evalRepo, bookRepo, userRepo, logger)
@@ -40,6 +42,7 @@ func Setup(cfg *config.Config, db *gorm.DB, codeStore util.CodeStore, minio *uti
 	authHandler := handler.NewAuthHandler(authService, logger)
 	userHandler := handler.NewUserHandler(userService, logger)
 	bookHandler := handler.NewBookHandler(bookService, logger)
+	borrowHandler := handler.NewBorrowHandler(borrowService, logger)
 	wishHandler := handler.NewWishHandler(wishService, logger)
 	convHandler := handler.NewConversationHandler(convService, logger)
 	evalHandler := handler.NewEvaluationHandler(evalService, logger)
@@ -69,6 +72,7 @@ func Setup(cfg *config.Config, db *gorm.DB, codeStore util.CodeStore, minio *uti
 		registerAuthRoutes(v1, cfg, authHandler, limiter)
 		registerUserRoutes(v1, cfg, userHandler, evalHandler, limiter)
 		registerBookRoutes(v1, cfg, bookHandler, limiter)
+		registerBorrowRoutes(v1, cfg, borrowHandler)
 		registerWishRoutes(v1, cfg, wishHandler, convHandler, limiter)
 		registerConversationRoutes(v1, cfg, convHandler, limiter)
 		registerEvaluationRoutes(v1, cfg, evalHandler, limiter)
