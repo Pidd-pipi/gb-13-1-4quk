@@ -110,3 +110,45 @@ func TestConversationServicePermission(t *testing.T) {
 		t.Errorf("outsider reading messages should fail")
 	}
 }
+
+func TestConversationServiceSellerInitiated(t *testing.T) {
+	env := newTestEnv(t)
+	seller, borrower := seedUsers(t, env)
+	bookRepo := repository.NewBookRepository(env.db)
+	book := &model.Book{SellerID: seller, Title: "大学物理", Price: 15, Condition: constants.ConditionSevenNew,
+		SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeInPerson, Status: constants.BookStatusLentOut}
+	if err := bookRepo.Create(book); err != nil {
+		t.Fatalf("seed book: %v", err)
+	}
+	svc := NewConversationService(
+		repository.NewConversationRepository(env.db),
+		repository.NewMessageRepository(env.db),
+		bookRepo,
+		repository.NewWishRepository(env.db),
+		env.logger,
+	)
+
+	// non-seller cannot use the seller-initiated path
+	if _, err := svc.CreateConversationToUser(borrower, book.ID, seller, "hi"); err == nil {
+		t.Errorf("non-seller using seller-initiated path should fail")
+	}
+	// seller contacts the borrower about the lent-out book
+	conv, err := svc.CreateConversationToUser(seller, book.ID, borrower, "同学，书快到期了")
+	if err != nil {
+		t.Fatalf("seller-initiated conversation: %v", err)
+	}
+	if conv.SellerID != seller || conv.BuyerID != borrower {
+		t.Errorf("conv participants wrong: seller=%d buyer=%d", conv.SellerID, conv.BuyerID)
+	}
+	// SendBookMessage reuses the same conversation
+	if err := svc.SendBookMessage(book.ID, seller, borrower, "【还书提醒】请尽快归还"); err != nil {
+		t.Fatalf("send book message: %v", err)
+	}
+	msgs, err := svc.ListMessages(borrower, conv.ID)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Errorf("messages len=%d, want 2 (initial + reminder)", len(msgs))
+	}
+}

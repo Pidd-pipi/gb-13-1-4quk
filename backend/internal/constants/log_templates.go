@@ -42,6 +42,13 @@ const (
 	LogMessageSendSuccess  = "message sent: conversation_id=%d sender=%d"
 	LogConversationRead    = "conversation marked read: id=%d user_id=%d"
 
+	LogBorrowApplied         = "borrow request created: id=%d book_id=%d borrower=%d"
+	LogBorrowApproved        = "borrow request approved: id=%d book_id=%d due_at=%s"
+	LogBorrowRejected        = "borrow request rejected: id=%d book_id=%d seller=%d"
+	LogBorrowReturned        = "borrow request returned: id=%d book_id=%d borrower=%d"
+	LogBorrowConfirmReturned = "borrow request confirm returned: id=%d book_id=%d seller=%d"
+	LogBorrowReminded        = "borrow reminder sent: id=%d book_id=%d seller=%d"
+
 	LogEvaluationCreate = "evaluation created: from=%d to=%d book_id=%d type=%s"
 	LogAuditRecorded    = "audit log recorded: user_id=%d action=%s resource=%s/%d"
 	LogUploadSuccess    = "file upload success: object=%s bucket=%s"

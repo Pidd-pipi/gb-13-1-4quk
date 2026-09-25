@@ -7,9 +7,10 @@ import (
 
 // CreateConversationRequest 从书籍或求购发起会话。
 type CreateConversationRequest struct {
-	BookID  uint   `json:"book_id"`
-	WishID  uint   `json:"wish_id"`
-	Content string `json:"content" binding:"required,max=2000"`
+	BookID   uint   `json:"book_id"`
+	WishID   uint   `json:"wish_id"`
+	ToUserID uint   `json:"to_user_id"` // 卖家主动联系某位同学（如借阅人）时使用
+	Content  string `json:"content" binding:"required,max=2000"`
 }
 
 // SendMessageRequest 发送消息。

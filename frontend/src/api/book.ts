@@ -28,6 +28,8 @@ export interface BookPayload {
   campus: string
   description: string
   images: string[]
+  lendable: boolean
+  lend_days: number
 }
 
 export function listBooks(params: BookQuery) {

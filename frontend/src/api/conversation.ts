@@ -13,6 +13,11 @@ export function createConversationFromBook(bookId: number, content: string) {
   return http.post<Conversation>('/conversations', { book_id: bookId, content })
 }
 
+// 卖家主动联系某位同学（如借阅人）
+export function createConversationToUser(bookId: number, toUserId: number, content: string) {
+  return http.post<Conversation>('/conversations', { book_id: bookId, to_user_id: toUserId, content })
+}
+
 export function listMessages(conversationId: number) {
   return http.get<Message[]>(`/conversations/${conversationId}/messages`)
 }

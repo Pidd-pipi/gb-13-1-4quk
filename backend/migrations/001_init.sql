@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS books (
   status VARCHAR(16) NOT NULL DEFAULT 'on_sale',
   reserved_by BIGINT UNSIGNED DEFAULT 0,
   reserved_at DATETIME(3) NULL,
+  lendable TINYINT(1) NOT NULL DEFAULT 0,
+  lend_days INT NOT NULL DEFAULT 0,
   view_count INT DEFAULT 0,
   favorite_count INT DEFAULT 0,
   created_at DATETIME(3) NULL,
@@ -127,6 +129,26 @@ CREATE TABLE IF NOT EXISTS browse_histories (
   book_id BIGINT UNSIGNED NOT NULL,
   viewed_at DATETIME(3) NOT NULL,
   KEY idx_hist_user_time (user_id, viewed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- borrow_requests 短借申请表
+CREATE TABLE IF NOT EXISTS borrow_requests (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  book_id BIGINT UNSIGNED NOT NULL,
+  borrower_id BIGINT UNSIGNED NOT NULL,
+  seller_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  approved_at DATETIME(3) NULL,
+  due_at DATETIME(3) NULL,
+  returned_at DATETIME(3) NULL,
+  confirmed_at DATETIME(3) NULL,
+  reminded_at DATETIME(3) NULL,
+  created_at DATETIME(3) NULL,
+  updated_at DATETIME(3) NULL,
+  KEY idx_borrow_book (book_id),
+  KEY idx_borrow_borrower (borrower_id),
+  KEY idx_borrow_seller (seller_id),
+  KEY idx_borrow_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- audit_logs 操作审计日志表

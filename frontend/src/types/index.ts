@@ -47,11 +47,34 @@ export interface Book {
   status: string
   status_text: string
   reserved_by: number
+  lendable: boolean
+  lend_days: number
+  active_borrow?: BorrowRequest
+  my_borrow?: BorrowRequest
   view_count: number
   favorite_count: number
   created_at: string
   seller?: User
   is_favorite?: boolean
+}
+
+export interface BorrowRequest {
+  id: number
+  book_id: number
+  borrower_id: number
+  seller_id: number
+  status: string
+  status_text: string
+  approved_at: string
+  due_at: string
+  returned_at: string
+  confirmed_at: string
+  reminded_at: string
+  overdue: boolean
+  created_at: string
+  book?: Book
+  borrower?: User
+  seller?: User
 }
 
 export interface Wish {

@@ -25,6 +25,18 @@
             </van-radio-group>
           </template>
         </van-field>
+        <van-field label="开放短借">
+          <template #input>
+            <van-switch v-model="form.lendable" size="20" />
+          </template>
+        </van-field>
+        <van-field v-if="form.lendable" label="借阅时长" required>
+          <template #input>
+            <van-radio-group v-model="form.lend_days" direction="horizontal">
+              <van-radio v-for="d in LendDaysOptions" :key="d.value" :name="d.value">{{ d.label }}</van-radio>
+            </van-radio-group>
+          </template>
+        </van-field>
         <van-field v-model="form.campus" label="所在校区" placeholder="如：东校区" />
         <van-field v-model="form.description" label="描述" type="textarea" rows="3" autosize placeholder="书籍情况、笔记情况等" maxlength="2000" show-word-limit />
       </van-cell-group>
@@ -48,7 +60,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showSuccessToast } from 'vant'
 import { createBook, updateBook, getBook } from '@/api/book'
-import { ConditionOptions } from '@/constants/enums'
+import { ConditionOptions, LendDaysOptions } from '@/constants/enums'
 import SubjectPicker from '@/components/SubjectPicker.vue'
 import ImageUploader from '@/components/ImageUploader.vue'
 
@@ -69,6 +81,8 @@ const form = reactive({
   trade_type: 'in_person',
   campus: '',
   description: '',
+  lendable: false,
+  lend_days: 7,
 })
 const images = ref<string[]>([])
 const submitting = ref(false)
@@ -88,6 +102,8 @@ onMounted(async () => {
       form.trade_type = book.trade_type
       form.campus = book.campus
       form.description = book.description
+      form.lendable = !!book.lendable
+      form.lend_days = book.lend_days || 7
       images.value = book.images || []
     } catch {
       /* toast */
@@ -97,6 +113,9 @@ onMounted(async () => {
 
 async function onSubmit() {
   if (!form.subject_category) {
+    return
+  }
+  if (form.lendable && !form.lend_days) {
     return
   }
   submitting.value = true
@@ -114,6 +133,8 @@ async function onSubmit() {
       campus: form.campus,
       description: form.description,
       images: images.value,
+      lendable: form.lendable,
+      lend_days: form.lendable ? Number(form.lend_days) : 0,
     }
     if (isEdit.value) {
       await updateBook(editId.value, payload)

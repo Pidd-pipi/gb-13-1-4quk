@@ -14,11 +14,13 @@ export const RoleText: Record<string, string> = {
   [Role.ADMIN]: '管理员',
 }
 
-// 书籍状态机：on_sale(在售) -> reserved(已预约) -> sold(已售出)
+// 书籍状态机：on_sale(在售) -> reserved(已预约) -> sold(已售出)；
+// 短借：on_sale <-> lent_out(借出，到期未还时显示逾期)
 export const BookStatus = {
   ON_SALE: 'on_sale',
   RESERVED: 'reserved',
   SOLD: 'sold',
+  LENT_OUT: 'lent_out',
 } as const
 export type BookStatusType = (typeof BookStatus)[keyof typeof BookStatus]
 
@@ -26,12 +28,44 @@ export const BookStatusText: Record<string, string> = {
   [BookStatus.ON_SALE]: '在售',
   [BookStatus.RESERVED]: '已预约',
   [BookStatus.SOLD]: '已售出',
+  [BookStatus.LENT_OUT]: '借出',
 }
 
-export const BookStatusBadge: Record<string, 'success' | 'warning' | 'default'> = {
+export const BookStatusBadge: Record<string, 'success' | 'warning' | 'default' | 'primary'> = {
   [BookStatus.ON_SALE]: 'success',
   [BookStatus.RESERVED]: 'warning',
   [BookStatus.SOLD]: 'default',
+  [BookStatus.LENT_OUT]: 'primary',
+}
+
+// 短借借期（发布时可借选项）
+export const LendDays = {
+  SHORT: 7,
+  LONG: 14,
+} as const
+
+export const LendDaysOptions = [
+  { value: LendDays.SHORT, label: '7 天' },
+  { value: LendDays.LONG, label: '14 天' },
+]
+
+// 借阅申请状态机：pending(待同意) -> approved(借出中) ->
+// returned(待确认归还) -> completed(已归还)；pending 也可 rejected(已拒绝)
+export const BorrowStatus = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  RETURNED: 'returned',
+  COMPLETED: 'completed',
+} as const
+export type BorrowStatusType = (typeof BorrowStatus)[keyof typeof BorrowStatus]
+
+export const BorrowStatusText: Record<string, string> = {
+  [BorrowStatus.PENDING]: '待同意',
+  [BorrowStatus.APPROVED]: '借出中',
+  [BorrowStatus.REJECTED]: '已拒绝',
+  [BorrowStatus.RETURNED]: '待确认归还',
+  [BorrowStatus.COMPLETED]: '已归还',
 }
 
 // 新旧程度

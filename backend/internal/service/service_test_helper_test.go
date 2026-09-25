@@ -81,7 +81,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	if err := db.AutoMigrate(
 		&model.User{}, &model.Book{}, &model.Wish{}, &model.Conversation{},
 		&model.Message{}, &model.Evaluation{}, &model.Favorite{},
-		&model.BrowseHistory{}, &model.AuditLog{},
+		&model.BrowseHistory{}, &model.AuditLog{}, &model.BorrowRequest{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

@@ -32,6 +32,15 @@ const (
 	CodeBookStatusConflict  = 40904
 	CodeBookAlreadyFavorite = 40905
 	CodeBookNotFavorite     = 40402
+	CodeBookNotLendable     = 40909
+)
+
+// 借阅模块错误码。
+const (
+	CodeBorrowNotFound      = 40405
+	CodeBorrowForbidden     = 40306
+	CodeBorrowStatusInvalid = 40910
+	CodeBorrowDuplicate     = 40911
 )
 
 // 求购模块错误码。

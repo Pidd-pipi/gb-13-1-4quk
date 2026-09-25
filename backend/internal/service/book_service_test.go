@@ -30,6 +30,7 @@ func newBookService(env *testEnv) *BookService {
 		repository.NewFavoriteRepository(env.db),
 		repository.NewBrowseHistoryRepository(env.db),
 		repository.NewUserRepository(env.db),
+		repository.NewBorrowRepository(env.db),
 		env.logger,
 	)
 }

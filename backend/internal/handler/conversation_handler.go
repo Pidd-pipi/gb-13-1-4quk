@@ -38,9 +38,12 @@ func (h *ConversationHandler) Create(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	var resp interface{}
 	var err error
-	if req.BookID > 0 {
+	switch {
+	case req.BookID > 0 && req.ToUserID > 0:
+		resp, err = h.convService.CreateConversationToUser(userID, req.BookID, req.ToUserID, req.Content)
+	case req.BookID > 0:
 		resp, err = h.convService.CreateConversationFromBook(userID, req.BookID, req.Content)
-	} else {
+	default:
 		resp, err = h.convService.CreateConversationFromWish(userID, req.WishID, req.Content)
 	}
 	if err != nil {

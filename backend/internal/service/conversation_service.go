@@ -55,6 +55,22 @@ func (s *ConversationService) CreateConversationFromWish(userID, wishID uint, co
 	return s.createConversation(0, wishID, wish.UserID, userID, content)
 }
 
+// CreateConversationToUser opens a seller-initiated chat with a specific user
+// about a book (e.g. contacting the borrower of a lent-out book).
+func (s *ConversationService) CreateConversationToUser(userID, bookID, toUserID uint, content string) (*dto.ConversationDTO, error) {
+	book, err := s.bookRepo.FindByID(bookID)
+	if err != nil {
+		return nil, util.NewAppError(http.StatusNotFound, constants.CodeBookNotFound, constants.MsgNotFound+": book id="+fmt.Sprint(bookID))
+	}
+	if book.SellerID != userID {
+		return nil, util.NewAppError(http.StatusForbidden, constants.CodeConversationForbidden, "仅卖家可向该书的同学发起会话")
+	}
+	if toUserID == 0 || toUserID == userID {
+		return nil, util.NewAppError(http.StatusBadRequest, constants.CodeBadRequest, "to_user_id 不合法")
+	}
+	return s.createConversation(bookID, 0, toUserID, userID, content)
+}
+
 // createConversation is the shared conversation factory reused by both
 // book-based and wish-based flows (至少 2 个接口复用同一 service 方法).
 func (s *ConversationService) createConversation(bookID, wishID, buyerID, sellerID uint, content string) (*dto.ConversationDTO, error) {
@@ -83,6 +99,39 @@ func (s *ConversationService) createConversation(bookID, wishID, buyerID, seller
 	}
 	s.logger.Info(constants.LogConversationCreated, "id", conv.ID, "buyer", buyerID, "seller", sellerID)
 	return s.convert(conv), nil
+}
+
+// SendBookMessage delivers a message between two users about a book, creating
+// the conversation when needed. Used by the borrow reminder flow where the
+// seller (not a buyer) initiates contact with the borrower.
+func (s *ConversationService) SendBookMessage(bookID, fromUserID, toUserID uint, content string) error {
+	book, err := s.bookRepo.FindByID(bookID)
+	if err != nil {
+		return util.NewAppError(http.StatusNotFound, constants.CodeBookNotFound, constants.MsgNotFound+": book id="+fmt.Sprint(bookID))
+	}
+	buyerID, sellerID := fromUserID, toUserID
+	if fromUserID == book.SellerID {
+		buyerID, sellerID = toUserID, fromUserID
+	}
+	conv, err := s.convRepo.FindExisting(bookID, 0, buyerID, sellerID)
+	if err != nil {
+		now := time.Now()
+		conv = &model.Conversation{
+			BookID:        bookID,
+			BuyerID:       buyerID,
+			SellerID:      sellerID,
+			LastMessage:   content,
+			LastMessageAt: &now,
+		}
+		if err := s.convRepo.Create(conv); err != nil {
+			s.logger.Error(constants.LogConversationCreated, "error", err)
+			return util.NewAppError(http.StatusInternalServerError, constants.CodeInternalError, constants.MsgInternalError)
+		}
+	}
+	if _, err := s.SendMessage(conv.ID, fromUserID, dto.SendMessageRequest{Content: content}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ListConversations returns the user's conversations.

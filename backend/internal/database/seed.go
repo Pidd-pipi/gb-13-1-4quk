@@ -43,8 +43,25 @@ func Seed(db *gorm.DB, logger *slog.Logger) error {
 		{SellerID: 4, Title: "大学英语综合教程（第三册）", Author: "李荫华", ISBN: "9787544636010", CourseName: "大学英语", OriginalPrice: 45, Price: 18, Condition: constants.ConditionFiveNew, SubjectCategory: constants.SubjectHumanities, TradeType: constants.TradeTypeMail, Campus: "校本部", Description: "旧版教材，适合复习使用。", Images: []byte("[]"), Status: constants.BookStatusOnSale, ViewCount: 66, FavoriteCount: 2},
 		{SellerID: 5, Title: "设计色彩基础", Author: "李立新", ISBN: "9787535637406", CourseName: "设计基础", OriginalPrice: 55, Price: 22, Condition: constants.ConditionNineNew, SubjectCategory: constants.SubjectArt, TradeType: constants.TradeTypeInPerson, Campus: "校本部", Description: "艺术设计专业用书。", Images: []byte("[]"), Status: constants.BookStatusOnSale, ViewCount: 45, FavoriteCount: 1},
 		{SellerID: 3, Title: "计算机组成原理（第2版）", Author: "唐朔飞", ISBN: "9787040258424", CourseName: "计算机组成原理", OriginalPrice: 39, Price: 16, Condition: constants.ConditionSevenNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeInPerson, Campus: "东校区", Description: "同院系同学在售教材。", Images: []byte("[]"), Status: constants.BookStatusOnSale, ViewCount: 30, FavoriteCount: 1},
+		{SellerID: 4, Title: "概率论与数理统计", Author: "盛骤", ISBN: "9787040238969", CourseName: "概率论", OriginalPrice: 36, Price: 12, Condition: constants.ConditionNineNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeInPerson, Campus: "校本部", Description: "只用一个学期，支持短借。", Images: []byte("[]"), Status: constants.BookStatusOnSale, Lendable: true, LendDays: constants.LendDays7, ViewCount: 54, FavoriteCount: 2},
+		{SellerID: 2, Title: "大学物理（上册）", Author: "张三慧", ISBN: "9787302193081", CourseName: "大学物理", OriginalPrice: 42, Price: 15, Condition: constants.ConditionSevenNew, SubjectCategory: constants.SubjectScience, TradeType: constants.TradeTypeInPerson, Campus: "东校区", Description: "可短借两周，到期请按时归还。", Images: []byte("[]"), Status: constants.BookStatusLentOut, Lendable: true, LendDays: constants.LendDays14, ViewCount: 73, FavoriteCount: 4},
+		{SellerID: 3, Title: "宏观经济学", Author: "曼昆", ISBN: "9787301294345", CourseName: "宏观经济学", OriginalPrice: 58, Price: 20, Condition: constants.ConditionNineNew, SubjectCategory: constants.SubjectEconManagement, TradeType: constants.TradeTypeInPerson, Campus: "西校区", Description: "期末过渡用书，可借 7 天。", Images: []byte("[]"), Status: constants.BookStatusLentOut, Lendable: true, LendDays: constants.LendDays7, ViewCount: 41, FavoriteCount: 1},
 	}
 	if err := db.Create(&books).Error; err != nil {
+		return err
+	}
+
+	now := time.Now()
+	approvedAt := now.Add(-3 * 24 * time.Hour)
+	dueAt := approvedAt.Add(14 * 24 * time.Hour)
+	overdueApprovedAt := now.Add(-9 * 24 * time.Hour)
+	overdueDueAt := overdueApprovedAt.Add(7 * 24 * time.Hour)
+	borrows := []model.BorrowRequest{
+		{BookID: 9, BorrowerID: 3, SellerID: 2, Status: constants.BorrowStatusApproved, ApprovedAt: &approvedAt, DueAt: &dueAt},
+		{BookID: 10, BorrowerID: 5, SellerID: 3, Status: constants.BorrowStatusApproved, ApprovedAt: &overdueApprovedAt, DueAt: &overdueDueAt},
+		{BookID: 8, BorrowerID: 2, SellerID: 4, Status: constants.BorrowStatusPending},
+	}
+	if err := db.Create(&borrows).Error; err != nil {
 		return err
 	}
 
@@ -57,7 +74,6 @@ func Seed(db *gorm.DB, logger *slog.Logger) error {
 		return err
 	}
 
-	now := time.Now()
 	conv := model.Conversation{BookID: 1, BuyerID: 3, SellerID: 2, LastMessage: "同学你好，这本书还在吗？", LastMessageAt: &now}
 	if err := db.Create(&conv).Error; err != nil {
 		return err

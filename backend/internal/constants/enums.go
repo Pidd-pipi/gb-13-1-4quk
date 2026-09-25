@@ -9,14 +9,36 @@ const (
 // 角色可选项，用于 handler 校验与 RBAC。
 var RoleOptions = []string{RoleStudent, RoleAdmin}
 
-// BookStatus 书籍状态机枚举：on_sale(在售) -> reserved(已预约) -> sold(已售出)。
+// BookStatus 书籍状态机枚举：on_sale(在售) -> reserved(已预约) -> sold(已售出)；
+// 短借流程：on_sale -> lent_out(借出) -> on_sale(归还确认后恢复)。
 const (
 	BookStatusOnSale   = "on_sale"
 	BookStatusReserved = "reserved"
 	BookStatusSold     = "sold"
+	BookStatusLentOut  = "lent_out"
 )
 
-var BookStatusOptions = []string{BookStatusOnSale, BookStatusReserved, BookStatusSold}
+var BookStatusOptions = []string{BookStatusOnSale, BookStatusReserved, BookStatusSold, BookStatusLentOut}
+
+// 短借借期枚举（天）：发布时勾选可借后二选一。
+const (
+	LendDays7  = 7
+	LendDays14 = 14
+)
+
+var LendDaysOptions = []int{LendDays7, LendDays14}
+
+// BorrowStatus 借阅申请状态机：pending(待同意) -> approved(借出中) ->
+// returned(待确认归还) -> completed(已归还)；pending 可被 reject(已拒绝)。
+const (
+	BorrowStatusPending   = "pending"
+	BorrowStatusApproved  = "approved"
+	BorrowStatusRejected  = "rejected"
+	BorrowStatusReturned  = "returned"
+	BorrowStatusCompleted = "completed"
+)
+
+var BorrowStatusOptions = []string{BorrowStatusPending, BorrowStatusApproved, BorrowStatusRejected, BorrowStatusReturned, BorrowStatusCompleted}
 
 // Condition 新旧程度枚举。
 const (

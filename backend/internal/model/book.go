@@ -25,6 +25,8 @@ type Book struct {
 	Status          string         `gorm:"size:16;default:on_sale;index" json:"status"`
 	ReservedBy      uint           `gorm:"default:0" json:"reserved_by"`
 	ReservedAt      *time.Time     `json:"reserved_at"`
+	Lendable        bool           `gorm:"default:false" json:"lendable"`
+	LendDays        int            `gorm:"default:0" json:"lend_days"`
 	ViewCount       int            `gorm:"default:0" json:"view_count"`
 	FavoriteCount   int            `gorm:"default:0" json:"favorite_count"`
 	CreatedAt       time.Time      `json:"created_at"`

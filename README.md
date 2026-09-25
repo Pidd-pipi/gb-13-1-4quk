@@ -35,6 +35,7 @@ docker compose up -d --build
 5. **交易沟通**：内置站内消息（文字 + 图片），会话未读数，支持标记书籍「已预约 / 已售出」。
 6. **交易评价**：交易完成后买卖双方互评（好评/中评/差评 + 文字），用户主页展示好评率与历史评价，差评率 ≥40% 且评价数 ≥3 时标记风险提示。
 7. **收藏与浏览历史**：收藏书籍、自动记录浏览历史、首页推荐同院系同学在售书籍。
+8. **教材短借**：发布时勾选「开放短借」并选择 7 天 / 14 天借期；同学在详情页提交借阅申请，卖家同意后书籍标记「借出」并记录到期日（其余申请自动拒绝）；借阅人到期前归还、卖家确认拿回后恢复可借；超过到期日显示「已逾期」，卖家可查看借阅人并通过站内消息发送还书提醒。
 
 ## 技术栈
 
@@ -142,7 +143,7 @@ cd frontend && npm install && npm run dev
 | GET | /users/:id/stats | 用户统计（复用 userService.GetStats） | 否 |
 | GET | /users/:id/evaluations | 用户收到的评价（复用 evaluationService.ListEvaluations） | 否 |
 
-### 书籍 Book（核心状态机 on_sale → reserved → sold）
+### 书籍 Book（核心状态机 on_sale → reserved → sold；短借 on_sale ⇄ lent_out）
 
 | 方法 | 路径 | 说明 | 认证 |
 | --- | --- | --- | --- |
@@ -159,6 +160,19 @@ cd frontend && npm install && npm run dev
 | POST | /books/:id/sold | 确认售出（reserved/on_sale→sold） | 是 |
 | POST | /books/:id/favorite | 收藏 | 是 |
 | DELETE | /books/:id/favorite | 取消收藏 | 是 |
+
+### 短借 Borrow（申请状态机 pending → approved → returned → completed / rejected）
+
+| 方法 | 路径 | 说明 | 认证 |
+| --- | --- | --- | --- |
+| POST | /books/:id/borrow-requests | 提交借阅申请（仅可借且在 sale 书籍） | 是 |
+| GET | /books/:id/borrow-requests | 该书的借阅申请列表（仅卖家） | 是 |
+| GET | /borrow-requests | 我的借阅（role=borrower）/ 我收到的申请（role=seller） | 是 |
+| POST | /borrow-requests/:id/approve | 卖家同意（书籍→lent_out + 到期日，其余申请自动拒绝，FOR UPDATE 事务） | 是 |
+| POST | /borrow-requests/:id/reject | 卖家拒绝 | 是 |
+| POST | /borrow-requests/:id/return | 借阅人归还（approved→returned） | 是 |
+| POST | /borrow-requests/:id/confirm-return | 卖家确认拿回（书籍→on_sale 恢复可借） | 是 |
+| POST | /borrow-requests/:id/remind | 卖家发送还书提醒（复用 conversationService.SendBookMessage 站内消息） | 是 |
 
 ### 求购 Wish
 
@@ -177,7 +191,7 @@ cd frontend && npm install && npm run dev
 | 方法 | 路径 | 说明 | 认证 |
 | --- | --- | --- | --- |
 | GET | /conversations | 我的会话列表（含未读数） | 是 |
-| POST | /conversations | 从书籍/求购创建会话 | 是 |
+| POST | /conversations | 从书籍/求购创建会话（卖家可带 to_user_id 主动联系某同学，复用 createConversation） | 是 |
 | GET | /conversations/:id | 会话详情 | 是 |
 | POST | /conversations/:id/messages | 发送消息（文字/图片） | 是 |
 | GET | /conversations/:id/messages | 消息列表 | 是 |
@@ -202,6 +216,8 @@ cd frontend && npm install && npm run dev
 
 - `bookService.ListBooks` 被「书籍列表」与「同院系推荐」复用（推荐页复用同一 DTO 转换管线）。
 - `conversationService.createConversation` 被「从书籍发起会话」「从求购发起会话（wish contact）」两个接口复用。
+- `conversationService.SendBookMessage` 被「短借还书提醒」复用（卖家 → 借阅人自动建会话发消息）。
+- `borrowService.transitionRequest` 被「同意 / 拒绝 / 归还 / 确认拿回」四个借阅状态流转接口复用（同一事务 + 行锁管线）。
 - `userService.GetStats` 被「我的统计」与「他人主页统计」两个接口复用。
 - `evaluationService.ListEvaluations` 被「评价接口响应」与「用户主页评价历史」复用。
 
@@ -215,7 +231,7 @@ cd frontend && npm install && npm run dev
 
 以下业务枚举在后端 `internal/constants/enums.go` 统一定义，并贯穿模型 / DTO / service 状态机 / handler 校验 / 日志模板 / formatters 与前端 `frontend/src/constants/enums.ts`、筛选与状态徽标组件。
 
-### 1. 书籍状态 BookStatus（on_sale / reserved / sold）
+### 1. 书籍状态 BookStatus（on_sale / reserved / sold / lent_out）
 
 | 出现位置（后端） | 文件 |
 | --- | --- |
@@ -231,7 +247,24 @@ cd frontend && npm install && npm run dev
 | 数据库脚本 | `backend/migrations/001_init.sql` |
 | 前端枚举/文案/徽标 | `frontend/src/constants/enums.ts`（BookStatusText / BookStatusBadge） |
 | 前端状态徽标 | `frontend/src/components/StatusBadge.vue` |
-| 前端筛选/页面 | `frontend/src/pages/MyBooks.vue`（在售/已预约/已售出 tabs）、`BookDetail.vue`（操作按钮显隐） |
+| 前端筛选/页面 | `frontend/src/pages/MyBooks.vue`（在售/已预约/借出/已售出 tabs）、`BookDetail.vue`（操作按钮显隐） |
+
+### 1.1 借阅申请状态 BorrowStatus（pending / approved / rejected / returned / completed）
+
+| 出现位置（后端） | 文件 |
+| --- | --- |
+| 枚举定义 | `internal/constants/enums.go`（含 LendDays 7/14 借期枚举） |
+| 模型 | `internal/model/borrow.go`（IsLentOut / IsOverdue 派生状态） |
+| DTO 状态文本 | `internal/dto/borrow_dto.go`（FromBorrow，overdue 计算） |
+| 状态机 | `internal/service/borrow_service.go`（transitionRequest 事务 + FOR UPDATE） |
+| handler 校验/路由动作 | `internal/handler/borrow_handler.go`（approve/reject/return/confirm-return/remind） |
+| 日志模板 | `internal/constants/log_templates.go`（LogBorrowApplied 等 6 条） |
+| 错误码 | `internal/constants/error_codes.go`（CodeBorrowNotFound/Forbidden/StatusInvalid/Duplicate） |
+| 格式化 | `internal/util/formatters.go`（FormatBorrowStatusText） |
+| 种子数据 | `internal/database/seed.go`（借出中 / 已逾期 / 待同意样例） |
+| 数据库脚本 | `backend/migrations/001_init.sql`（borrow_requests 表） |
+| 前端枚举/文案 | `frontend/src/constants/enums.ts`（BorrowStatusText / LendDaysOptions） |
+| 前端页面 | `frontend/src/pages/BookDetail.vue`（申请/审批/归还/提醒）、`Borrows.vue`（我的借阅）、`PublishBook.vue`（可借开关 + 借期） |
 
 ### 2. 新旧程度 Condition（brand_new / nine_new / seven_new / five_new）
 

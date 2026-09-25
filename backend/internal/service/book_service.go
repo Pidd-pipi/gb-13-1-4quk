@@ -27,17 +27,26 @@ type BookService struct {
 	favRepo     *repository.FavoriteRepository
 	historyRepo *repository.BrowseHistoryRepository
 	userRepo    *repository.UserRepository
+	borrowRepo  *repository.BorrowRepository
 	logger      *slog.Logger
 }
 
 // NewBookService creates a BookService.
 func NewBookService(db *gorm.DB, bookRepo *repository.BookRepository, favRepo *repository.FavoriteRepository,
-	historyRepo *repository.BrowseHistoryRepository, userRepo *repository.UserRepository, logger *slog.Logger) *BookService {
-	return &BookService{db: db, bookRepo: bookRepo, favRepo: favRepo, historyRepo: historyRepo, userRepo: userRepo, logger: logger}
+	historyRepo *repository.BrowseHistoryRepository, userRepo *repository.UserRepository,
+	borrowRepo *repository.BorrowRepository, logger *slog.Logger) *BookService {
+	return &BookService{db: db, bookRepo: bookRepo, favRepo: favRepo, historyRepo: historyRepo, userRepo: userRepo, borrowRepo: borrowRepo, logger: logger}
 }
 
 // CreateBook publishes a new book for sale.
 func (s *BookService) CreateBook(sellerID uint, req dto.CreateBookRequest) (*dto.BookDTO, error) {
+	lendDays := 0
+	if req.Lendable {
+		if req.LendDays != constants.LendDays7 && req.LendDays != constants.LendDays14 {
+			return nil, util.NewAppError(http.StatusBadRequest, constants.CodeValidationError, constants.MsgLendDaysInvalid)
+		}
+		lendDays = req.LendDays
+	}
 	book := &model.Book{
 		SellerID:        sellerID,
 		Title:           req.Title,
@@ -53,6 +62,8 @@ func (s *BookService) CreateBook(sellerID uint, req dto.CreateBookRequest) (*dto
 		Description:     req.Description,
 		Images:          marshalImages(req.Images),
 		Status:          constants.BookStatusOnSale,
+		Lendable:        req.Lendable,
+		LendDays:        lendDays,
 	}
 	if err := s.bookRepo.Create(book); err != nil {
 		s.logger.Error(constants.LogBookCreateFailed, "seller_id", sellerID, "error", err)
@@ -115,6 +126,18 @@ func (s *BookService) UpdateBook(userID, bookID uint, req dto.UpdateBookRequest)
 	if req.OriginalPrice >= 0 {
 		book.OriginalPrice = req.OriginalPrice
 	}
+	if req.Lendable != nil {
+		book.Lendable = *req.Lendable
+		if !book.Lendable {
+			book.LendDays = 0
+		}
+	}
+	if req.LendDays == constants.LendDays7 || req.LendDays == constants.LendDays14 {
+		book.LendDays = req.LendDays
+	}
+	if book.Lendable && book.LendDays == 0 {
+		book.LendDays = constants.LendDays7
+	}
 	if err := s.bookRepo.Update(book); err != nil {
 		s.logger.Error(constants.LogBookUpdateSuccess, "id", bookID, "title", book.Title, "error", err)
 		return nil, util.NewAppError(http.StatusInternalServerError, constants.CodeInternalError, constants.MsgInternalError)
@@ -132,6 +155,9 @@ func (s *BookService) DeleteBook(userID, bookID uint) error {
 	}
 	if book.SellerID != userID {
 		return util.NewAppError(http.StatusForbidden, constants.CodeBookNotOwned, constants.MsgBookNotOwned)
+	}
+	if book.Status == constants.BookStatusLentOut {
+		return util.NewAppError(http.StatusConflict, constants.CodeBookStatusConflict, "书籍借出中，归还确认后才能下架")
 	}
 	if err := s.bookRepo.Delete(bookID); err != nil {
 		s.logger.Error(constants.LogBookDeleteSuccess, "id", bookID, "seller_id", userID, "error", err)
@@ -193,7 +219,30 @@ func (s *BookService) GetBookDetail(userID, bookID uint) (*dto.BookDTO, error) {
 		exists, _ := s.favRepo.Exists(userID, bookID)
 		d.IsFavorite = exists
 	}
+	s.attachBorrowInfo(&d, book, userID)
 	return &d, nil
+}
+
+// attachBorrowInfo enriches a book detail with the active lent-out request and
+// the viewer's own ongoing application. Borrower identity is only exposed to
+// the seller and the borrower themselves.
+func (s *BookService) attachBorrowInfo(d *dto.BookDTO, book *model.Book, viewerID uint) {
+	if active, err := s.borrowRepo.FindActiveByBook(book.ID); err == nil && active != nil {
+		b := dto.FromBorrow(active)
+		if viewerID == book.SellerID || viewerID == active.BorrowerID {
+			if active.Borrower != nil {
+				u := dto.FromUser(active.Borrower)
+				b.Borrower = &u
+			}
+		}
+		d.ActiveBorrow = &b
+	}
+	if viewerID > 0 {
+		if mine, err := s.borrowRepo.FindOngoingByBookAndBorrower(book.ID, viewerID); err == nil && mine != nil {
+			m := dto.FromBorrow(mine)
+			d.MyBorrow = &m
+		}
+	}
 }
 
 // ReserveBook transitions on_sale -> reserved (buyer marks 已预约).
@@ -251,6 +300,9 @@ func (s *BookService) transition(userID, bookID uint, from, to string) (*dto.Boo
 			}
 			if fromStatus == constants.BookStatusSold {
 				return util.NewAppError(http.StatusConflict, constants.CodeBookStatusConflict, "书籍已售出，状态不可再变更")
+			}
+			if fromStatus == constants.BookStatusLentOut {
+				return util.NewAppError(http.StatusConflict, constants.CodeBookStatusConflict, "书籍借出中，归还确认后才能标记售出")
 			}
 			book.Status = constants.BookStatusSold
 		default:

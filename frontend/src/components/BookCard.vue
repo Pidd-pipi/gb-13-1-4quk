@@ -12,6 +12,7 @@
         <ConditionTag :condition="book.condition" />
         <van-tag plain type="primary">{{ book.subject_text }}</van-tag>
         <van-tag v-if="book.trade_type_text" plain>{{ book.trade_type_text }}</van-tag>
+        <van-tag v-if="book.lendable" plain type="success">可借{{ book.lend_days ? `·${book.lend_days}天` : '' }}</van-tag>
       </div>
       <div class="bottom">
         <span class="price">{{ formatPrice(book.price) }}</span>
