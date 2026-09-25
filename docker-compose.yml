@@ -1,0 +1,116 @@
+name: campusbooks
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: ${COMPOSE_PROJECT_NAME:-campusbooks}_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-campusbooks_root}
+      MYSQL_DATABASE: ${DB_NAME:-campusbooks_db}
+      MYSQL_USER: ${DB_USER:-campusbooks_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-campusbooks_pwd}
+      TZ: Asia/Shanghai
+    ports:
+      - "${DB_PORT:-44007}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database:/docker-entrypoint-initdb.d:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${DB_USER:-campusbooks_user} -p$${DB_PASSWORD:-campusbooks_pwd} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-campusbooks}_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-46307}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  minio:
+    image: minio/minio:RELEASE.2024-07-04T14-25-45Z
+    container_name: ${COMPOSE_PROJECT_NAME:-campusbooks}_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_PORT:-9007}:9000"
+      - "${MINIO_CONSOLE_PORT:-9008}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/9000'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+    container_name: ${COMPOSE_PROJECT_NAME:-campusbooks}_backend
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "8080"
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: ${DB_USER:-campusbooks_user}
+      DB_PASSWORD: ${DB_PASSWORD:-campusbooks_pwd}
+      DB_NAME: ${DB_NAME:-campusbooks_db}
+      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_string}
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: "0"
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: campusbooks
+      APP_CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-8011}
+    ports:
+      - "${BACKEND_PORT:-3011}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: ${COMPOSE_PROJECT_NAME:-campusbooks}_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8011}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  redis_data:
+  minio_data:
